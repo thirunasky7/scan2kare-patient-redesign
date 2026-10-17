@@ -1,0 +1,160 @@
+import 'package:flutter/material.dart';
+import '../pages/profile_screen.dart';
+import '../pages/my_bookings_screen.dart';
+import '../pages/health_hub_screen.dart';
+import '../pages/health_hub_video_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
+import '../pages/login_screen.dart';
+import '../pages/setting_screen.dart';
+import '../pages/second_opinion_landing.dart';
+
+class CommonDrawer extends StatefulWidget {
+  const CommonDrawer({super.key});
+
+  @override
+  State<CommonDrawer> createState() => _CommonDrawerState();
+}
+
+class _CommonDrawerState extends State<CommonDrawer> {
+  String userName = "Guest";
+  String email = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    setState(() {
+      userName = prefs.getString('user_name') ?? "Guest";
+      email = prefs.getString('user_email') ?? "";
+    });
+  }
+
+  /// LOGOUT
+  void _logout() async {
+    await AuthService.logout();
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: Colors.white,
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                const SizedBox(height: 20),
+                Image.asset("assets/app-logo.png", width: 100, height: 80),
+                _drawerItem(Icons.person_outline, "My Profile", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ProfileUpdateScreen(),
+                    ),
+                  );
+                }),
+
+                _drawerItem(Icons.book, "My Bookings", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MyBookingsScreen(),
+                    ),
+                  );
+                }),
+
+                /// HEALTH HUB MENU
+                ExpansionTile(
+                  leading: const Icon(Icons.health_and_safety),
+                  title: const Text("Health Hub"),
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.article),
+                      title: const Text("Articles"),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const HealthHubScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.video_library),
+                      title: const Text("Videos"),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const HealthHubVideoScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                _drawerItem(Icons.message, "Second Opinion", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SecondOptionScreen(),
+                    ),
+                  );
+                }),
+                _drawerItem(Icons.settings, "Settings", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SettingsScreen(),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+
+          /// LOGOUT
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text(
+              "Logout",
+              style: TextStyle(color: Colors.red),
+            ),
+            onTap: _logout,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Drawer Item
+Widget _drawerItem(IconData icon, String title, VoidCallback onTap) {
+  return Column(
+    children: [
+      ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+      const Divider(height: 1),
+    ],
+  );
+}

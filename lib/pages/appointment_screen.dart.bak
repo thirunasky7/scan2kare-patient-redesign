@@ -1,0 +1,623 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'appointment_preview_screen.dart';
+import '../services/hospital_service.dart';
+import '../models/patient.dart';
+import 'dart:convert'; // for jsonDecode
+import 'package:http/http.dart' as http; // for http requests
+import 'package:shared_preferences/shared_preferences.dart';
+
+class AppointmentDateTimeScreen extends StatefulWidget {
+  final int doctorId;
+  final int hospitalId;
+  final String doctorName;
+  final String doctorAddress;
+  final String hospitalName;
+  final String doctorImage;
+
+  const AppointmentDateTimeScreen({
+    super.key,
+    required this.doctorId,
+    required this.hospitalId,
+    required this.doctorName,
+    required this.doctorAddress,
+    required this.hospitalName,
+    required this.doctorImage,
+  });
+
+  @override
+  State<AppointmentDateTimeScreen> createState() =>
+      _AppointmentDateTimeScreenState();
+}
+
+class _AppointmentDateTimeScreenState extends State<AppointmentDateTimeScreen> {
+  int selectedDate = DateTime.now().day;
+  int selectedTimeIndex = -1;
+  DateTime currentMonth = DateTime.now();
+  late DateTime maxMonth;
+
+  List<String> timeSlots = [];
+  bool isLoadingSlots = false;
+
+  List<Patient> patients = [];
+  Patient? selectedPatient;
+  bool isLoadingPatients = false;
+
+  // Form controllers for patient details
+  final TextEditingController _patientNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _contactController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
+
+  // Form key for validation
+  final _formKey = GlobalKey<FormState>();
+
+  int daysInMonth(DateTime date) {
+    final firstDayNextMonth = DateTime(date.year, date.month + 1, 1);
+    return firstDayNextMonth.subtract(const Duration(days: 1)).day;
+  }
+
+  bool isSameMonth(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    maxMonth = DateTime(currentMonth.year, currentMonth.month + 3);
+    _fetchTimeSlotsForDate(DateTime.now());
+    _fetchPatients();
+    maxMonth = DateTime(
+      currentMonth.year,
+      currentMonth.month + 3,
+    );
+    // Fetch time slots for today initially
+    _fetchTimeSlotsForDate(DateTime.now());
+  }
+
+  Future<void> _fetchPatients() async {
+    setState(() => isLoadingPatients = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      final response = await http.get(
+        Uri.parse('https://scan2kare.com/api/patient/family-profiles'),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Accept": "application/json",
+        },
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['data'] != null) {
+        List list = data['data'];
+
+        setState(() {
+          patients = list.map((e) => Patient.fromJson(e)).toList();
+
+          selectedPatient = patients.firstWhere(
+            (p) => p.relationship.toLowerCase() == "self",
+            orElse: () => patients.first,
+          );
+        });
+      } else {
+        throw Exception("Failed to load patients");
+      }
+    } catch (e) {
+      print("Patient API Error: $e");
+
+      setState(() {
+        patients = [];
+        selectedPatient = null;
+      });
+    } finally {
+      setState(() => isLoadingPatients = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Dispose controllers to prevent memory leaks
+    _patientNameController.dispose();
+    _emailController.dispose();
+    _contactController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchTimeSlotsForDate(DateTime date) async {
+    setState(() {
+      isLoadingSlots = true;
+      selectedTimeIndex = -1;
+      timeSlots = [];
+    });
+
+    try {
+      final slots = await HospitalService.getAvailableTimeSlots(
+        doctorId: widget.doctorId,
+        hospitalId: widget.hospitalId,
+        date: date,
+      );
+
+      setState(() {
+        timeSlots = slots;
+      });
+    } catch (e) {
+      //('Error fetching time slots: $e');
+      setState(() {
+        timeSlots = [];
+      });
+    } finally {
+      setState(() {
+        isLoadingSlots = false;
+      });
+    }
+  }
+
+  // Helper method to check if all required fields are filled
+  bool _areAllRequiredFieldsFilled() {
+    return _patientNameController.text.isNotEmpty &&
+        // _emailController.text.isNotEmpty &&
+        _contactController.text.isNotEmpty;
+  }
+
+  // Helper method to check if form is valid
+  bool _isFormValid() {
+    // if (!_areAllRequiredFieldsFilled()) {
+    //   return false;
+    // }
+
+    // // Email validation ONLY if not empty
+    // if (_emailController.text.isNotEmpty) {
+    //   final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    //   if (!emailRegex.hasMatch(_emailController.text)) {
+    //     return false;
+    //   }
+    // }
+
+    // // Check phone number format (10 digits)
+    // final phoneRegex = RegExp(r'^[0-9]{10}$');
+    // if (!phoneRegex.hasMatch(_contactController.text)) {
+    //   return false;
+    // }
+
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0x1F62C6FF),
+        surfaceTintColor: const Color(0x1F62C6FF),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+        centerTitle: true,
+        title: Text(
+          widget.doctorName,
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+          ),
+        ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Icon(Icons.favorite_border, color: Colors.black),
+          )
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(20),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  widget.doctorAddress,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                )
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Select Date
+            const Text(
+              'Select Date',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            _calendarCard(),
+
+            const SizedBox(height: 24),
+
+            // Select Timing
+            const Text(
+              'Select Timing',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            _buildTimeSlotsGrid(),
+
+            // Patient Details Section (only shows when time slot is selected)
+            if (selectedTimeIndex >= 0) ...[
+              const SizedBox(height: 24),
+              _patientDetailsForm(),
+            ],
+
+            const SizedBox(height: 30),
+
+            // Continue Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: selectedTimeIndex >= 0 && _isFormValid()
+                      ? const Color(0xFF2B6F71)
+                      : Colors.grey,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: selectedTimeIndex >= 0 && selectedPatient != null
+                    ? () {
+                        final selectedFullDate = DateTime(
+                          currentMonth.year,
+                          currentMonth.month,
+                          selectedDate,
+                        );
+
+                        final appointmentData = {
+                          'doctor_id': widget.doctorId,
+                          'hospital_id': widget.hospitalId,
+                          'date':
+                              DateFormat('yyyy-MM-dd').format(selectedFullDate),
+                          'time': timeSlots[selectedTimeIndex],
+                          'patient_id': selectedPatient!.id,
+                          'patient_name': selectedPatient!.name,
+                          'patient_phone': selectedPatient!.phone,
+                          'patient': {
+                            'id': selectedPatient!.id,
+                            'name': selectedPatient!.name,
+                            'phone': selectedPatient!.phone,
+                            'relationship': selectedPatient!.relationship,
+                          },
+                          'notes': _notesController.text.trim(),
+                        };
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AppointmentPreviewScreen(
+                              appointmentData: appointmentData,
+                              doctorId: widget.doctorId,
+                              hospitalId: widget.hospitalId,
+                              hospitalAddress: widget.doctorAddress,
+                              doctorName: widget.doctorName,
+                              hospitalName: widget.hospitalName,
+                              doctorImage: widget.doctorImage,
+                            ),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text(
+                  'Continue',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= CALENDAR CARD =================
+  Widget _calendarCard() {
+    final totalDays = daysInMonth(currentMonth);
+    final today = DateTime.now();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                DateFormat('MMMM yyyy').format(currentMonth),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: isSameMonth(currentMonth, today)
+                        ? null
+                        : () {
+                            setState(() {
+                              currentMonth = DateTime(
+                                currentMonth.year,
+                                currentMonth.month - 1,
+                              );
+                            });
+                          },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: currentMonth.isAfter(
+                            DateTime(maxMonth.year, maxMonth.month - 1))
+                        ? null
+                        : () {
+                            setState(() {
+                              currentMonth = DateTime(
+                                currentMonth.year,
+                                currentMonth.month + 1,
+                              );
+                            });
+                          },
+                  ),
+                ],
+              )
+            ],
+          ),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: totalDays,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+            ),
+            itemBuilder: (context, index) {
+              final day = index + 1;
+              final date = DateTime(currentMonth.year, currentMonth.month, day);
+
+              final isPast = date.isBefore(
+                DateTime(today.year, today.month, today.day),
+              );
+
+              final isSelected =
+                  selectedDate == day && isSameMonth(currentMonth, date);
+
+              return GestureDetector(
+                onTap: isPast
+                    ? null
+                    : () {
+                        setState(() {
+                          selectedDate = day;
+                          selectedTimeIndex =
+                              -1; // Reset time selection when date changes
+                        });
+                        _fetchTimeSlotsForDate(date);
+                      },
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF2B6F71)
+                        : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$day',
+                    style: TextStyle(
+                      color: isPast
+                          ? Colors.grey
+                          : isSelected
+                              ? Colors.white
+                              : Colors.black,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _patientDetailsForm() {
+    if (isLoadingPatients) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF2B6F71)),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select Patient',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2B6F71),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<Patient>(
+              isExpanded: true,
+              value:
+                  patients.contains(selectedPatient) ? selectedPatient : null,
+              hint: const Text('Choose patient'),
+              items: patients.map((patient) {
+                return DropdownMenuItem<Patient>(
+                  value: patient,
+                  child: Text("${patient.name} (${patient.relationship})"),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedPatient = value;
+                });
+              },
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.person),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ✅ NOTES FIELD
+            TextFormField(
+              controller: _notesController,
+              decoration: InputDecoration(
+                labelText: 'Notes (Optional)',
+                hintText: 'Any additional info',
+                prefixIcon: const Icon(Icons.note, size: 20),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= TIME SLOTS GRID =================
+  Widget _buildTimeSlotsGrid() {
+    if (isLoadingSlots) {
+      return Container(
+        height: 200,
+        alignment: Alignment.center,
+        child: const CircularProgressIndicator(
+          color: Color(0xFF2B6F71),
+        ),
+      );
+    }
+
+    if (timeSlots.isEmpty) {
+      return Container(
+        height: 200,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.schedule,
+              size: 48,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'No time slots available',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select another date to see available slots',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: timeSlots.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 2.4,
+      ),
+      itemBuilder: (context, index) {
+        bool isSelected = selectedTimeIndex == index;
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              selectedTimeIndex = index;
+            });
+          },
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFF2B6F71) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color:
+                    isSelected ? const Color(0xFF2B6F71) : Colors.grey.shade300,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF2B6F71).withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Text(
+              timeSlots[index],
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.black,
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

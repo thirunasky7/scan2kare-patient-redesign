@@ -1,0 +1,1089 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../models/hospitals.dart';
+import 'scanner_screen.dart';
+import '../services/hospital_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
+import 'home_screen.dart';
+import 'profile_screen.dart';
+import 'my_bookings_screen.dart';
+import '../services/auth_service.dart';
+import '../utils/auth_nav.dart';
+import 'doctors_screen.dart';
+import 'package:flutter_google_places_sdk/flutter_google_places_sdk.dart';
+import '../services/location_service.dart';
+import '../widgets/common_drawer.dart';
+import 'hospital_list_screen.dart';
+
+class TypeBasedHospitalScreen extends StatefulWidget {
+  final String? type;
+
+  const TypeBasedHospitalScreen({
+    super.key,
+    this.type,
+  });
+
+  @override
+  State<TypeBasedHospitalScreen> createState() =>
+      _TypeBasedHospitalScreenState();
+}
+
+class _TypeBasedHospitalScreenState extends State<TypeBasedHospitalScreen> {
+  int _currentIndex = -1; // Footer tabs stay unselected on this list page
+  String _userName = 'Guest';
+  String _address = '';
+
+  // Hospital lists
+  List<HospitalItem> hospitals = [];
+  List<HospitalItem> displayedHospitals = []; // For pagination
+
+  // Loading states
+  bool isLoading = true;
+  bool isPaginationLoading = false;
+  bool hasMoreData = true;
+
+  // Pagination
+  int currentPage = 1;
+  final int itemsPerPage = 20;
+  final ScrollController _scrollController = ScrollController();
+
+  // Hospital Search
+  final TextEditingController _hospitalSearchController =
+      TextEditingController();
+  String searchQuery = '';
+
+  // Google Places Integration - Separate controller for location
+  final FlutterGooglePlacesSdk places =
+      FlutterGooglePlacesSdk("AIzaSyCdntEDArTMSulXGyjZgzCcXc-KYCileLA");
+  final TextEditingController _locationSearchController =
+      TextEditingController();
+  List<AutocompletePrediction> predictions = [];
+  Timer? _debounce;
+  bool _isSearching = false;
+  final FocusNode _searchFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+    _loadSavedLocation();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _locationSearchController.dispose();
+    _hospitalSearchController.dispose();
+    _searchFocusNode.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // ================= LOCATION METHODS =================
+
+  Future<void> _loadSavedLocation() async {
+    final savedLocation = await LocationService.loadLocation();
+    if (savedLocation != null) {
+      setState(() {
+        _address = savedLocation['address'];
+      });
+      await loadHospitalsWithLocation(
+        savedLocation['latitude'],
+        savedLocation['longitude'],
+      );
+    } else {
+      // If no saved location, use device location with full address
+      try {
+        final position = await LocationService.getCurrentLocation();
+        final address = await LocationService.getAddressFromLatLng(
+          position.latitude,
+          position.longitude,
+        );
+
+        await LocationService.saveLocation(
+          address,
+          position.latitude,
+          position.longitude,
+        );
+
+        setState(() {
+          _address = address;
+        });
+
+        await loadHospitalsWithLocation(position.latitude, position.longitude);
+      } catch (e) {
+        //debugPrint("Error getting initial location: $e");
+        loadHospitals();
+      }
+    }
+  }
+
+  Future<void> loadHospitals() async {
+    try {
+      Position pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      List<HospitalItem> data;
+
+      // Check if type is provided - use type-based API
+      if (widget.type != null && widget.type!.isNotEmpty) {
+        data = await HospitalService.fetchHospitalsByType(
+          widget.type!,
+          pos.latitude.toString(),
+          pos.longitude.toString(),
+        );
+      } else {
+        // Otherwise use location-based API
+        data = await HospitalService.fetchNearbyHospitals(
+          pos.latitude,
+          pos.longitude,
+        );
+      }
+
+      // Sort hospitals alphabetically by name (ascending order)
+      if (data.isNotEmpty) {
+        data.sort((a, b) => a.distance.compareTo(b.distance));
+      }
+
+      setState(() {
+        hospitals = data;
+        _resetPagination();
+        isLoading = false;
+      });
+    } catch (e) {
+      // debugPrint("Hospital API error: $e");
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> loadHospitalsWithLocation(double lat, double lng) async {
+    setState(() {
+      isLoading = true;
+      currentPage = 1;
+      displayedHospitals = []; // Clear displayed hospitals
+      hospitals = []; // Clear hospitals list
+    });
+
+    try {
+      List<HospitalItem> data = [];
+      // CASE 1: Type-based filtering (when type is provided)
+      if (widget.type != null && widget.type!.isNotEmpty) {
+        try {
+          // Try to fetch hospitals by type with location parameters
+          data = await HospitalService.fetchHospitalsByType(
+            widget.type!,
+            lat.toString(),
+            lng.toString(),
+          );
+
+          // If type-based API returns empty, try location-based as fallback
+          if (data.isEmpty) {
+            data = await HospitalService.fetchNearbyHospitals(lat, lng);
+
+            if (data.isNotEmpty) {
+              data = data
+                  .where((h) =>
+                      h.type.toLowerCase() == widget.type!.toLowerCase() ||
+                      (widget.type!.toLowerCase() == "hospital" &&
+                          (h.type.toLowerCase() == "hospital" ||
+                              h.type.toLowerCase() == "clinic")))
+                  .toList();
+            }
+          }
+        } catch (e) {
+          data = await HospitalService.fetchNearbyHospitals(lat, lng);
+          if (data.isNotEmpty) {
+            data = data
+                .where((h) =>
+                    h.type.toLowerCase() == widget.type!.toLowerCase() ||
+                    (widget.type!.toLowerCase() == "hospital" &&
+                        (h.type.toLowerCase() == "hospital" ||
+                            h.type.toLowerCase() == "clinic")))
+                .toList();
+          }
+        }
+      }
+      // CASE 2: Location-based only (no type provided)
+      else {
+        try {
+          data = await HospitalService.fetchNearbyHospitals(lat, lng);
+        } catch (e) {
+          data = [];
+        }
+      }
+
+      // Sort hospitals alphabetically by name
+      if (data.isNotEmpty) {
+        data.sort((a, b) => a.distance.compareTo(b.distance));
+        // CRITICAL FIX: Update hospitals list and reset pagination
+        setState(() {
+          hospitals = data;
+          isLoading = false;
+        });
+
+        // Call this after hospitals are set
+        _resetPagination();
+      } else {
+        setState(() {
+          hospitals = [];
+          isLoading = false;
+        });
+
+        // Show appropriate message to user
+        if (mounted) {
+          String message = widget.type != null
+              ? "No ${widget.type} hospitals found in your area"
+              : "No hospitals found in your area";
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to load hospitals. Please try again."),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+      setState(() {
+        hospitals = [];
+        isLoading = false;
+      });
+    }
+  }
+  // ================= GOOGLE PLACES METHODS =================
+
+  void onSearchChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      getPredictions(value);
+    });
+  }
+
+  Future<void> getPredictions(String input) async {
+    if (input.isEmpty) {
+      setState(() => predictions = []);
+      return;
+    }
+
+    final result = await places.findAutocompletePredictions(
+      input,
+      countries: ["in"],
+    );
+
+    setState(() {
+      predictions = result.predictions;
+    });
+  }
+
+  Future<void> selectPlace(AutocompletePrediction prediction) async {
+    try {
+      setState(() {
+        _isSearching = false;
+        isLoading = true; // Show loading immediately
+      });
+
+      final details = await places.fetchPlace(
+        prediction.placeId,
+        fields: [PlaceField.Location, PlaceField.Name, PlaceField.Address],
+      );
+
+      final location = details.place!.latLng!;
+      final formattedAddress =
+          details.place!.address ?? prediction.fullText ?? "Selected Location";
+
+      // Save to SharedPreferences
+      await LocationService.saveLocation(
+        formattedAddress,
+        location.lat,
+        location.lng,
+      );
+
+      setState(() {
+        _address = formattedAddress;
+        _locationSearchController.clear();
+        predictions = [];
+        _searchFocusNode.unfocus();
+      });
+
+      // Force reload with new location
+      await loadHospitalsWithLocation(location.lat, location.lng);
+    } catch (e) {
+      setState(() {
+        predictions = [];
+        _isSearching = false;
+        isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error selecting location: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> useCurrentLocation() async {
+    try {
+      setState(() {
+        _isSearching = false;
+        isLoading = true;
+      });
+
+      final position = await LocationService.getCurrentLocation();
+      final address = await LocationService.getAddressFromLatLng(
+          position.latitude, position.longitude);
+
+      await LocationService.saveLocation(
+        address,
+        position.latitude,
+        position.longitude,
+      );
+
+      setState(() {
+        _address = address;
+        _locationSearchController.clear();
+      });
+
+      await loadHospitalsWithLocation(position.latitude, position.longitude);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error getting location: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      setState(() => isLoading = false);
+    }
+  }
+  // Future<void> useCurrentLocation() async {
+  //   try {
+  //     setState(() {
+  //       _isSearching = false;
+  //       isLoading = true;
+  //     });
+
+  //     final position = await LocationService.getCurrentLocation();
+  //     final address = await LocationService.getAddressFromLatLng(
+  //         position.latitude, position.longitude);
+
+  //     await LocationService.saveLocation(
+  //       address,
+  //       position.latitude,
+  //       position.longitude,
+  //     );
+
+  //     setState(() {
+  //       _address = address;
+  //       _locationSearchController.clear(); // Clear location search
+  //     });
+
+  //     await loadHospitalsWithLocation(position.latitude, position.longitude);
+
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text("Location updated"),
+  //           duration: const Duration(seconds: 2),
+  //         ),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     debugPrint("Error getting current location: $e");
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: Text("Error getting location"),
+  //           backgroundColor: Colors.red,
+  //         ),
+  //       );
+  //     }
+  //     setState(() => isLoading = false);
+  //   }
+  // }
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _locationSearchController.clear();
+        predictions = [];
+        _searchFocusNode.unfocus();
+      } else {
+        _searchFocusNode.requestFocus();
+      }
+    });
+  }
+
+  // ================= PAGINATION METHODS =================
+
+  void _resetPagination() {
+    setState(() {
+      currentPage = 1;
+      hasMoreData = hospitals.isNotEmpty;
+      displayedHospitals = [];
+    });
+    _loadMoreData();
+  }
+
+  void _loadMoreData() {
+    if (!hasMoreData || isPaginationLoading) {
+      return;
+    }
+
+    final startIndex = (currentPage - 1) * itemsPerPage;
+
+    if (startIndex >= hospitals.length) {
+      setState(() {
+        hasMoreData = false;
+      });
+      return;
+    }
+
+    setState(() {
+      isPaginationLoading = true;
+    });
+
+    // Small delay for smooth UX
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() {
+          final endIndex = (startIndex + itemsPerPage) < hospitals.length
+              ? startIndex + itemsPerPage
+              : hospitals.length;
+
+          final newItems = hospitals.sublist(startIndex, endIndex);
+          displayedHospitals.addAll(newItems);
+
+          currentPage++;
+          isPaginationLoading = false;
+
+          if (displayedHospitals.length >= hospitals.length) {
+            hasMoreData = false;
+          }
+        });
+      }
+    });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreData();
+    }
+  }
+
+  // ================= SEARCH METHODS =================
+
+  void filterHospitalsBySearch(String query) {
+    setState(() {
+      searchQuery = query;
+      _applySearch();
+    });
+  }
+
+  void _applySearch() {
+    if (searchQuery.isEmpty) {
+      // Reset pagination with all hospitals
+      _resetPagination();
+      return;
+    }
+
+    final filtered = hospitals
+        .where((hospital) =>
+            hospital.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
+            hospital.address.toLowerCase().contains(searchQuery.toLowerCase()))
+        .toList();
+
+// ? ADD THIS LINE
+    filtered.sort((a, b) => a.distance.compareTo(b.distance));
+
+    // Update displayed hospitals with filtered results
+    setState(() {
+      displayedHospitals = filtered.take(itemsPerPage).toList();
+      currentPage = 2; // Next page will load from index itemsPerPage
+      hasMoreData = filtered.length > itemsPerPage;
+    });
+  }
+
+  // ================= NAVIGATION =================
+
+  void _openDoctors(HospitalItem hospital) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DoctorListScreen(
+          hospitalId: hospital.id,
+          hospitalName: hospital.name,
+          hospitalAddress: hospital.address,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadUserProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userName = prefs.getString('user_name') ?? 'Stephen James';
+      _address = prefs.getString('address') ?? 'Chitlapakkam, Chennai';
+    });
+  }
+
+  // ================= BUILD =================
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: _buildAppBar(),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/gradient.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+          SafeArea(
+            child: _buildBody(),
+          ),
+          // Location Search Overlay
+          if (_isSearching)
+            Positioned.fill(
+              child: SafeArea(
+                child: Container(
+                  color: Colors.white,
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        color: Colors.white,
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back),
+                              onPressed: _toggleSearch,
+                            ),
+                            Expanded(
+                              child: TextField(
+                                controller: _locationSearchController,
+                                focusNode: _searchFocusNode,
+                                decoration: InputDecoration(
+                                  hintText: "Search for your area, city...",
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  suffixIcon: _locationSearchController
+                                          .text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear),
+                                          onPressed: () {
+                                            _locationSearchController.clear();
+                                            setState(() => predictions = []);
+                                          },
+                                        )
+                                      : null,
+                                ),
+                                onChanged: onSearchChanged,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      /// Current location
+                      if (_locationSearchController.text.isEmpty)
+                        ListTile(
+                          leading: const Icon(Icons.my_location,
+                              color: Color(0xFF243C90)),
+                          title: const Text(
+                            "Use My Current Location",
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          onTap: useCurrentLocation,
+                        ),
+
+                      /// Predictions
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: predictions.length,
+                          itemBuilder: (context, index) {
+                            final p = predictions[index];
+                            return ListTile(
+                              leading: const Icon(Icons.location_on),
+                              title: Text(p.fullText ?? ""),
+                              subtitle: Text(p.secondaryText),
+                              onTap: () => selectPlace(p),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+      bottomNavigationBar: _buildCustomBottomBar(),
+    );
+  }
+
+  // ================= APP BAR =================
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      title: GestureDetector(
+        onTap: _toggleSearch,
+        child: Column(
+          children: [
+            Text(
+              _userName,
+              style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    _address.isNotEmpty ? _address : "Tap to set location",
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= BODY =================
+
+  Widget _buildBody() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      controller: _scrollController,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Screen Title based on type
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              widget.type != null
+                  ? '${widget.type!.toUpperCase()} HOSPITALS'
+                  : 'NEARBY HOSPITALS',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF243C90),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildSearchBar(), // Hospital search bar
+          const SizedBox(height: 12),
+          _buildBannerCard(),
+          const SizedBox(height: 12),
+          isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : hospitals.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text("No hospitals found"),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: displayedHospitals.length,
+                          itemBuilder: (context, index) {
+                            final hospital = displayedHospitals[index];
+                            return hospitalCard(
+                              hospital,
+                              onTap: () => _openDoctors(hospital),
+                            );
+                          },
+                        ),
+                        if (isPaginationLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                        if (!hasMoreData && displayedHospitals.isNotEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text(
+                              "No more hospitals",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                      ],
+                    ),
+        ],
+      ),
+    );
+  }
+
+  // ================= SEARCH BAR =================
+
+  Widget _buildSearchBar() {
+    return TextField(
+      controller: _hospitalSearchController,
+      onChanged: filterHospitalsBySearch,
+      decoration: InputDecoration(
+        hintText: "Search by Hospital/Clinic name",
+        prefixIcon: const Icon(Icons.search, size: 20),
+        suffixIcon: _hospitalSearchController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: () {
+                  _hospitalSearchController.clear();
+                  filterHospitalsBySearch('');
+                },
+              )
+            : null,
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+    );
+  }
+
+  // ================= BANNER =================
+
+  Widget _buildBannerCard() {
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.blue.shade50,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                widget.type != null
+                    ? "Explore ${widget.type} hospitals near you"
+                    : "Connect with the hospitals nearby you",
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.network(
+              "https://images.unsplash.com/photo-1586773860418-d37222d8fce3",
+              width: 140,
+              height: 120,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: 140,
+                  height: 120,
+                  color: Colors.grey.shade300,
+                  child: const Icon(Icons.image_not_supported),
+                );
+              },
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  // ================= HOSPITAL CARD =================
+
+  Widget hospitalCard(HospitalItem hospital, {required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          children: [
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+              child: Image.network(
+                hospital.image,
+                height: 150,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 150,
+                    width: double.infinity,
+                    color: Colors.grey.shade300,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.local_hospital,
+                            size: 40, color: Colors.grey.shade600),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Image\nunavailable',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    height: 150,
+                    width: double.infinity,
+                    color: Colors.grey.shade200,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(hospital.name,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(hospital.address,
+                      style: const TextStyle(color: Colors.grey),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.orange, size: 16),
+                      const SizedBox(width: 4),
+                      Text("${hospital.rating}"),
+                      const SizedBox(width: 6),
+                      Text("(${hospital.reviews} Reviews)"),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on,
+                          size: 16, color: Colors.blue),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          "${hospital.distance.toStringAsFixed(2)} km / ${hospital.time}",
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.local_hospital, size: 16),
+                      const SizedBox(width: 4),
+                      Text(hospital.type),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================= BOTTOM BAR =================
+
+  Widget _buildCustomBottomBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 1,
+            blurRadius: 5,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        bottom: true,
+        minimum: const EdgeInsets.only(bottom: 4),
+        child: Container(
+          height: 70,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Home Tab
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.home,
+                        color: _currentIndex == 0
+                            ? const Color(0xFF2B6F71)
+                            : Colors.grey.shade600,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Home',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: _currentIndex == 0
+                              ? const Color(0xFF2B6F71)
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Center Scanner Button
+              Container(
+                width: 70,
+                height: 70,
+                margin: const EdgeInsets.only(bottom: 15),
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ScannerScreen()),
+                    );
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF2B6F71),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.qr_code_scanner,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Favorites Tab
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HospitalHomeScreen(),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.favorite_border,
+                        color: Colors.grey.shade600,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Favorites',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _logout() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    goToLogin();
+  }
+}

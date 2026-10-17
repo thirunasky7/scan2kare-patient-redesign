@@ -1,0 +1,688 @@
+import 'package:flutter/material.dart';
+import '../widgets/panel_card.dart';
+import 'gyno_byte.dart';
+
+class HealthInsightsScreen extends StatelessWidget {
+  const HealthInsightsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // backgroundColor: const Color(0xFF0E0F13),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent, // ✅ same color
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: const Text("Gyno Bytes"),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            /// ================= HERO SECTION =================
+            Container(
+              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              color: const Color(0xFFEAEFF3),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade600,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        "Precision Genetic Testing & Personalized Health Solutions",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Unlock Your DNA.\nTransform Your Health.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2B3A67),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "Discover how your genetic blueprint influences your health, lifestyle, and future risks.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2B6F71),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 30, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const GenoByteScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      "Book a Consultation",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            /// ================= EXECUTIVE SUMMARY =================
+            _sectionTitle("Executive Summary"),
+            _sectionText(
+                "We map your DNA into whole-body metabolic pathways: the biochemical networks that control how your body functions."),
+            _sectionText(
+                "Every gene influences enzymes, every enzyme drives a pathway, and every pathway shapes your health outcomes-from metabolism and hormones to brain function and inflammation."),
+
+            _sectionText(
+                "By analysing these interconnected systems, we identify where your biology may be inefficient, overloaded, or imbalanced, and translate this into clear, personalised actions you can take."),
+            _sectionText(
+                "This allows us to move from genetic prediction to true functional precision health."),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity, // IMPORTANT: full width
+              color: const Color(0xFF2F7D8C), // section background
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.transparent, // remove inner bg
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        "What you get",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text("Personalized Health Plan",
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    const Text("• Food recommendations",
+                        style: TextStyle(color: Colors.white)),
+                    const Text("• Supplements guidance",
+                        style: TextStyle(color: Colors.white)),
+                    const Text("• Fitness optimization",
+                        style: TextStyle(color: Colors.white)),
+                    const SizedBox(height: 15),
+                    const Text("Actionable Insights",
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
+                    const Text("• Clear health risks",
+                        style: TextStyle(color: Colors.white)),
+                    const Text("• Preventive strategies",
+                        style: TextStyle(color: Colors.white)),
+                    const Text("• Lifestyle improvement",
+                        style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+            ),
+
+            Container(
+              width: double.infinity,
+              color: Colors.white, // ✅ FULL SECTION WHITE BG
+              child: Column(
+                children: [
+                  /// 🔝 TOP TEXT SECTION
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    child: Column(
+                      children: [
+                        Text(
+                          "More than 36 Panels with 40+ Million Genetic Markers",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2D3A8C),
+                          ),
+                        ),
+                        SizedBox(height: 10),
+                        Text(
+                          "By identifying potential health risks early on, you can work together with our team of experts to develop a comprehensive plan that addresses your unique needs. Our commitment to your health extends beyond the initial screening, as we provide ongoing support, comprehensive genetic consultations, and report interpretation to guide you on your wellness journey.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black87,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  /// 🔽 GRID SECTION
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: GridView.count(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 0,
+                      mainAxisSpacing: 0,
+                      childAspectRatio: 0.80,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: const [
+                        PanelCard(
+                          title: "Men's Health",
+                          image:
+                              "https://scan2kare.devsites.online/public/assets/images/geno-bytes/Men-Health.jpeg",
+                          description:
+                              "Provides a summary of genetic susceptibilities in 11 categories and analyzes more than 60 conditions...",
+                        ),
+                        PanelCard(
+                          title: "Little Kids",
+                          image:
+                              "https://scan2kare.devsites.online/public/assets/images/geno-bytes/Little-Kids.jpeg",
+                          description:
+                              "Assess 370 conditions, analyzes 664 genes, and shows the genetic susceptibility...",
+                        ),
+                        PanelCard(
+                          title: "Women's Health",
+                          image:
+                              "https://scan2kare.devsites.online/public/assets/images/geno-bytes/Women-Health.jpeg",
+                          description:
+                              "Provides a summary of genetic susceptibilities in 12 categories...",
+                        ),
+                        PanelCard(
+                          title: "Beauty",
+                          image:
+                              "https://scan2kare.devsites.online/public/assets/images/geno-bytes/Beauty.jpeg",
+                          description:
+                              "Analyses more than 30 categories and 200 conditions...",
+                        ),
+                        PanelCard(
+                          title: "Fitness",
+                          image:
+                              "https://scan2kare.devsites.online/public/assets/images/geno-bytes/Genetic-Fitness.jpeg",
+                          description:
+                              "Provides valuable information in fitness and sports...",
+                        ),
+                        PanelCard(
+                          title: "Fertility",
+                          image:
+                              "https://scan2kare.devsites.online/public/assets/images/geno-bytes/Genetic-Fitness.jpeg",
+                          description:
+                              "This panel analyzes more than 70 conditions...",
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20), // bottom spacing
+                ],
+              ),
+            ),
+
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                /// 🔝 TOP TITLE + DESCRIPTION
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          "How it works",
+                          style: TextStyle(
+                            color: Colors.green.shade800,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        "Just 4 simple steps",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E2A5A),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Discover how your genetic blueprint influences your health, lifestyle, and future risks. GenoByte empowers you with personalized insights to take control of your well-being.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                /// 🔽 STEPS TIMELINE
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      _timelineStep(
+                        title: "Sample Collection",
+                        desc:
+                            "Use our easy-to-use swab test kit to collect your saliva sample.",
+                        isActive: false,
+                        isLast: false,
+                      ),
+                      _timelineStep(
+                        title: "Lab Analysis and Genetic Report",
+                        desc:
+                            "Samples are processed at our genomic tech centers to generate your unique code.",
+                        isActive: false,
+                        isLast: false,
+                      ),
+                      _timelineStep(
+                        title: "Consultation",
+                        desc:
+                            "A 1-to-1 session with trained healthcare professionals to interpret your results.",
+                        isActive: true, // ✅ highlighted
+                        isLast: false,
+                      ),
+                      _timelineStep(
+                        title: "Personalize Care Plan",
+                        desc:
+                            "Actionable recommendations for diet, supplements, and fitness routines.",
+                        isActive: false,
+                        isLast: true,
+                      ),
+                    ],
+                  ),
+                )
+              ],
+            ),
+            _sectionTitle("Benefits With Us"),
+
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                physics: const NeverScrollableScrollPhysics(),
+                children: const [
+                  _BenefitCard(
+                    title: "Preventive Healthcare",
+                    subtitle: "Detect risks early",
+                    image:
+                        "https://scan2kare.devsites.online/public/assets/img/icons/benefit-icon-01.svg",
+                  ),
+                  _BenefitCard(
+                    title: "Personalized Decisions",
+                    subtitle: "Smart lifestyle choices",
+                    image:
+                        "https://scan2kare.devsites.online/public/assets/img/icons/benefit-icon-02.svg",
+                  ),
+                  _BenefitCard(
+                    title: "Longevity Focus",
+                    subtitle: "Improve lifespan",
+                    image:
+                        "https://scan2kare.devsites.online/public/assets/img/icons/benefit-icon-03.svg",
+                  ),
+                  _BenefitCard(
+                    title: "Scientific Approach",
+                    subtitle: "Backed by genomics",
+                    image:
+                        "https://scan2kare.devsites.online/public/assets/img/icons/benefit-icon-04.svg",
+                  ),
+                ],
+              ),
+            ),
+
+            /// ================= ✅ FIXED SECTION =================
+            Container(
+              width: double.infinity,
+              color: const Color(0xFFF5F7FB),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Competitive Differentiators",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F3A8A),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _card(
+                    title: "Lab Analysis and Genetic Report",
+                    description:
+                        "The only system that calculates risk based on your specific population background for maximum precision",
+                  ),
+                  _card(
+                    title: "Integrated Health Guidance",
+                    description:
+                        "We don’t just provide a report; we cross-reference genetic predispositions with actual blood parameters to confirm conditions.",
+                  ),
+                  _card(
+                    title: "MedGeneCare AI Portal",
+                    description:
+                        "A proprietary system that enables continuous health monitoring and actionable scientific evidence-based recommendations.",
+                  ),
+                  _card(
+                    title: "Data Privacy",
+                    description:
+                        "Fully compliant with GDPR (international) and PDPA (Malaysia) regulations to ensure your genetic data remains secure.",
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ================= CARD =================
+  Widget _card({required String title, required String description}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              )),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ================= HELPERS =================
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF2B3A67),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionText(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Text(text),
+    );
+  }
+}
+
+Widget _timelineStep({
+  required String title,
+  required String desc,
+  required bool isActive,
+  required bool isLast,
+}) {
+  return IntrinsicHeight(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// 🟢 LEFT LINE + DOT
+        Column(
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: const BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check, color: Colors.white, size: 14),
+            ),
+            if (!isLast)
+              Expanded(
+                child: Container(
+                  width: 2,
+                  color: Colors.green.shade300,
+                ),
+              ),
+          ],
+        ),
+
+        const SizedBox(width: 12),
+
+        /// 📦 CARD
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isActive ? Colors.green : const Color(0xFFF3F3F3),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                if (!isActive)
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  )
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: isActive ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  desc,
+                  style: TextStyle(
+                    color: isActive ? Colors.white70 : Colors.black54,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )
+      ],
+    ),
+  );
+}
+
+/// ================= HELPERS =================
+Widget _sectionTitle(String title) {
+  return Padding(
+    padding: const EdgeInsets.all(16),
+    child: Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF2B3A67),
+      ),
+    ),
+  );
+}
+
+Widget _sectionText(String text) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Text(
+      text,
+      style: const TextStyle(color: Colors.black),
+    ),
+  );
+}
+
+Widget _step(String title, String desc) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Row(
+      children: [
+        const CircleAvatar(radius: 6, backgroundColor: Colors.green),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1E26),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 5),
+                Text(desc, style: const TextStyle(color: Colors.white70)),
+              ],
+            ),
+          ),
+        )
+      ],
+    ),
+  );
+}
+
+/// ================= PANEL CARD =================
+class _PanelCard extends StatelessWidget {
+  final String title;
+
+  const _PanelCard({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1E26),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+/// ================= BENEFIT CARD =================
+class _BenefitCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String image;
+
+  const _BenefitCard({
+    required this.title,
+    required this.subtitle,
+    required this.image,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Image.network(
+            image, // 👉 your image path
+            width: 30,
+            height: 30,
+          ),
+          const SizedBox(height: 10),
+          Text(title,
+              style: const TextStyle(
+                  color: Colors.black, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 5),
+          Text(subtitle, style: const TextStyle(color: Colors.black)),
+        ],
+      ),
+    );
+  }
+}

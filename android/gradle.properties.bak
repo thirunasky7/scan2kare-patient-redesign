@@ -1,0 +1,13 @@
+org.gradle.jvmargs=-Xmx4096M -XX:MaxMetaspaceSize=1024M -XX:+HeapDumpOnOutOfMemoryError
+android.useAndroidX=true
+android.enableJetifier=false
+systemProp.http.connectionTimeout=60000
+systemProp.http.socketTimeout=60000
+systemProp.https.connectionTimeout=60000
+systemProp.https.socketTimeout=60000
+dev.steenbakker.mobile_scanner.useUnbundled=true
+# Keep legacy KGP until plugins migrate to Built-in Kotlin
+android.builtInKotlin=false
+android.newDsl=false
+# Avoid Kotlin incremental cache errors across different drive roots (C: pub-cache vs G: project)
+kotlin.incremental=false

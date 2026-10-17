@@ -1,0 +1,35 @@
+class ApiConfig {
+  /// Dev API host — change here only to retarget the whole app.
+  static const String host = 'https://scan2kare.com';
+  static const String baseUrl = '$host/api';
+
+  static const String sendOtp = '$baseUrl/patient/send-otp';
+  static const String verifyOtp = '$baseUrl/patient/verify-otp';
+  static const String deeplinkParse = '$baseUrl/deeplink/parse';
+  static const String resolveLink = '$baseUrl/resolve-link';
+  static const String banners = '$baseUrl/banners';
+
+  /// Patient favourites — used when the API is present; the app also stores
+  /// hearts locally so this does not depend on a Laravel deploy.
+  static const String favoritesToggle = '$baseUrl/patient/favorites/toggle';
+  static const String favorites = '$baseUrl/patient/favorites';
+  static const String favoriteIds = '$baseUrl/patient/favorites/ids';
+
+  static String liveAppointment(int appointmentId) =>
+      '$baseUrl/v3/appointments/$appointmentId/live';
+
+  static String liveAppointmentEvents(int appointmentId) =>
+      '$baseUrl/v3/appointments/$appointmentId/live/events';
+
+  static String liveAppointmentCheckIn(int appointmentId) =>
+      '$baseUrl/v3/appointments/$appointmentId/check-in';
+
+  static const String googlePlaceApiKey =
+      'AIzaSyCdntEDArTMSulXGyjZgzCcXc-KYCileLA';
+
+  /// Public site assets (logos, service card images) — keep production CDN.
+  static const String assetHost = 'https://scan2kare.com';
+
+  /// Site origin without `/api` (second-opinion images, FAQ art, etc.).
+  static String get siteUrl => host;
+}

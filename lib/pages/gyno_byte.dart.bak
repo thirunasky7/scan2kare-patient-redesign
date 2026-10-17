@@ -1,0 +1,336 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'gyno_byte_landing.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
+
+class GenoByteScreen extends StatefulWidget {
+  const GenoByteScreen({super.key});
+
+  @override
+  State<GenoByteScreen> createState() => _GenoByteScreenState();
+}
+
+class _GenoByteScreenState extends State<GenoByteScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final nameController = TextEditingController();
+  final phoneController = TextEditingController();
+  final emailController = TextEditingController();
+  final addressController = TextEditingController();
+
+  bool isAcceptedTerms = false;
+  bool showTermsError = false;
+
+  /// 🔗 Open URL
+  Future<void> openUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      throw "Could not launch $url";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text("Gyno Byte"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/gradient.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+          SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 80),
+
+                  const Text(
+                    "Information",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  /// 🔹 NAME
+                  _buildField(
+                    label: "Name *",
+                    controller: nameController,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Name is required";
+                      }
+                      if (value.length < 3) return "Enter valid name";
+                      if (!RegExp(r'^[a-zA-Z ]+$').hasMatch(value)) {
+                        return "Only alphabets allowed";
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  /// 🔹 PHONE
+                  _buildField(
+                    label: "Phone Number *",
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Phone number is required";
+                      }
+                      if (!RegExp(r'^[6-9]\d{9}$').hasMatch(value)) {
+                        return "Enter valid 10-digit mobile number";
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  /// 🔹 EMAIL
+                  _buildField(
+                    label: "Email Address *",
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Email is required";
+                      }
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w]{2,4}$')
+                          .hasMatch(value)) {
+                        return "Enter valid email";
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  /// 🔹 ADDRESS
+                  _buildField(
+                    label: "Address *",
+                    controller: addressController,
+                    maxLines: 3,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Address is required";
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  /// ✅ TERMS & CONDITIONS (ALIGNED PROPERLY)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Checkbox(
+                        value: isAcceptedTerms,
+                        onChanged: (value) {
+                          setState(() {
+                            isAcceptedTerms = value ?? false;
+                            if (isAcceptedTerms) showTermsError = false;
+                          });
+                        },
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            openUrl("https://scan2kare.devsites.online/terms");
+                          },
+                          child: RichText(
+                            textAlign: TextAlign.left,
+                            text: const TextSpan(
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 14,
+                              ),
+                              children: [
+                                TextSpan(text: "I agree to the "),
+                                TextSpan(
+                                  text: "Terms & Conditions",
+                                  style: TextStyle(
+                                    color: Colors.blue,
+                                    decoration: TextDecoration.underline,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  /// 🔴 TERMS ERROR
+                  if (showTermsError)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8, top: 6),
+                      child: Text(
+                        "You must accept Terms & Conditions",
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+
+                  const SizedBox(height: 30),
+
+                  /// ✅ SUBMIT BUTTON
+                  Center(
+                    child: SizedBox(
+                      width: 200,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2B6F71),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () async {
+                          setState(() {
+                            showTermsError = !isAcceptedTerms;
+                          });
+
+                          if (!_formKey.currentState!.validate()) return;
+                          if (!isAcceptedTerms) return;
+
+                          final prefs = await SharedPreferences.getInstance();
+                          String? token = prefs.getString('token');
+
+                          if (token == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("User not logged in"),
+                              ),
+                            );
+                            return;
+                          }
+
+                          try {
+                            final response = await http.post(
+                              Uri.parse(
+                                  "https://scan2kare.com/api/consultation"),
+                              headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": "Bearer $token",
+                              },
+                              body: jsonEncode({
+                                "name": nameController.text,
+                                "phone": phoneController.text,
+                                "email": emailController.text,
+                                "address": addressController.text,
+                              }),
+                            );
+
+                            if (response.statusCode == 201) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Submitted Successfully"),
+                                ),
+                              );
+
+                              nameController.clear();
+                              phoneController.clear();
+                              emailController.clear();
+                              addressController.clear();
+
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const HealthInsightsScreen(),
+                                ),
+                              );
+                            } else if (response.statusCode == 401) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text("Unauthorized. Please login again."),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Error: ${response.body}"),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Network error: $e"),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text("Submit"),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required String label,
+    required TextEditingController controller,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    List<TextInputFormatter>? inputFormatters,
+    required String? Function(String?) validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          inputFormatters: inputFormatters,
+          validator: validator,
+          decoration: InputDecoration(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

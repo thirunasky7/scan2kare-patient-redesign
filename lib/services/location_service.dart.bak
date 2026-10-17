@@ -1,0 +1,248 @@
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter/material.dart';
+
+class LocationService {
+  static const String _keyAddress = 'saved_address';
+  static const String _keyLat = 'saved_latitude';
+  static const String _keyLng = 'saved_longitude';
+  static const String _googleApiKey = "AIzaSyCdntEDArTMSulXGyjZgzCcXc-KYCileLA";
+
+  // Save location
+  static Future<void> saveLocation(
+      String address, double lat, double lng) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAddress, address);
+    await prefs.setDouble(_keyLat, lat);
+    await prefs.setDouble(_keyLng, lng);
+  }
+
+  // Load saved location
+  static Future<Map<String, dynamic>?> loadLocation() async {
+    final prefs = await SharedPreferences.getInstance();
+    final address = prefs.getString(_keyAddress);
+    final lat = prefs.getDouble(_keyLat);
+    final lng = prefs.getDouble(_keyLng);
+
+    if (address != null && lat != null && lng != null) {
+      return {
+        'address': address,
+        'latitude': lat,
+        'longitude': lng,
+      };
+    }
+    return null;
+  }
+
+  // Clear saved location
+  static Future<void> clearLocation() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyAddress);
+    await prefs.remove(_keyLat);
+    await prefs.remove(_keyLng);
+  }
+
+  // Get current device location
+  static Future<Position> getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Location services are disabled.');
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        throw Exception('Location permissions are denied');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception('Location permissions are permanently denied');
+    }
+
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+  }
+
+  // Get real address from current location using Places API
+  static Future<String> getRealAddressFromCurrentLocation() async {
+    try {
+      Position position = await getCurrentLocation();
+      String realAddress = await getAddressFromLatLngWithPlacesApi(
+          position.latitude, position.longitude);
+      return realAddress;
+    } catch (e) {
+      debugPrint("Error getting real address: $e");
+      return "Unable to get address";
+    }
+  }
+
+  // Using Places API for reverse geocoding (more reliable)
+  static Future<String> getAddressFromLatLngWithPlacesApi(
+      double lat, double lng) async {
+    try {
+      // Use Places API nearby search to find the closest place
+      final url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
+          '?location=$lat,$lng'
+          '&radius=100' // 100 meters radius
+          '&key=$_googleApiKey';
+
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+          final place = data['results'][0];
+
+          // Get the place details for more accurate address
+          String placeId = place['place_id'];
+          String detailedAddress = await getPlaceDetails(placeId);
+
+          if (detailedAddress.isNotEmpty &&
+              detailedAddress != "Unknown Location") {
+            return detailedAddress;
+          }
+
+          // Fallback to place name and vicinity
+          String name = place['name'] ?? '';
+          String vicinity = place['vicinity'] ?? '';
+
+          if (name.isNotEmpty && vicinity.isNotEmpty) {
+            return "$name, $vicinity";
+          } else if (name.isNotEmpty) {
+            return name;
+          }
+        }
+      }
+
+      return "Current Location";
+    } catch (e) {
+      debugPrint("Places API error: $e");
+      return "Current Location";
+    }
+  }
+
+  // Get detailed place information using Place ID
+  static Future<String> getPlaceDetails(String placeId) async {
+    try {
+      final url = 'https://maps.googleapis.com/maps/api/place/details/json'
+          '?place_id=$placeId'
+          '&fields=formatted_address,name,vicinity'
+          '&key=$_googleApiKey';
+
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['status'] == 'OK') {
+          final result = data['result'];
+
+          // Return formatted address if available
+          if (result['formatted_address'] != null) {
+            return result['formatted_address'];
+          }
+
+          // Fallback to name + vicinity
+          String name = result['name'] ?? '';
+          String vicinity = result['vicinity'] ?? '';
+
+          if (name.isNotEmpty && vicinity.isNotEmpty) {
+            return "$name, $vicinity";
+          } else if (name.isNotEmpty) {
+            return name;
+          }
+        }
+      }
+
+      return "";
+    } catch (e) {
+      debugPrint("Place details error: $e");
+      return "";
+    }
+  }
+
+  // Alternative: Use Geocoding API (requires enabling Geocoding API)
+  static Future<String> getAddressFromLatLng(double lat, double lng) async {
+    try {
+      final url =
+          'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lng&key=$_googleApiKey&language=en';
+
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+          final result = data['results'][0];
+          return result['formatted_address'] ?? "Current Location";
+        } else if (data['status'] == 'REQUEST_DENIED') {
+          debugPrint(
+              "Geocoding API not enabled. Please enable it in Google Cloud Console");
+          return "Enable Geocoding API";
+        }
+      }
+
+      return "Current Location";
+    } catch (e) {
+      debugPrint("Reverse geocoding error: $e");
+      return "Current Location";
+    }
+  }
+
+  // Get place name (using Places API directly)
+  static Future<String> getPlaceNameFromLatLng(double lat, double lng) async {
+    try {
+      final url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
+          '?location=$lat,$lng'
+          '&radius=50'
+          '&key=$_googleApiKey';
+
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+          final place = data['results'][0];
+          String name = place['name'] ?? '';
+          String vicinity = place['vicinity'] ?? '';
+
+          if (name.isNotEmpty && vicinity.isNotEmpty) {
+            return "$name, $vicinity";
+          } else if (name.isNotEmpty) {
+            return name;
+          }
+        }
+      }
+
+      return "Current Location";
+    } catch (e) {
+      debugPrint("Place name error: $e");
+      return "Current Location";
+    }
+  }
+
+  // Get short address for display
+  static String getShortAddress(String fullAddress) {
+    if (fullAddress.isEmpty ||
+        fullAddress == "Current Location" ||
+        fullAddress == "Enable Geocoding API") {
+      return "Select Location";
+    }
+
+    List<String> parts = fullAddress.split(',');
+    if (parts.length > 2) {
+      return parts.sublist(parts.length - 3).join(',').trim();
+    }
+    return fullAddress;
+  }
+}
